@@ -2,8 +2,12 @@ name = "mayoi"
 main = "src/index.ts"
 compatibility_date = "2023-05-15"
 
+kv_namespaces = [
+	{ binding = "MAYOI_KV", id = "649abd1901924652922ee29c4d994415" }
+]
+
 # Cron Triggers
 # Docs: https://developers.cloudflare.com/workers/platform/triggers/cron-triggers/
 # Configuration: https://developers.cloudflare.com/workers/wrangler/configuration/#triggers
 [triggers]
-crons = ["* * * * *"] # * * * * * = run every minute
+crons = ["0 */6 * * *", "0 5-17/12 * * *"]
