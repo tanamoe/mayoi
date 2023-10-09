@@ -1,50 +1,144 @@
-/**
- * Welcome to Cloudflare Workers!
- *
- * This is a template for a Scheduled Worker: a Worker that can run on a
- * configurable interval:
- * https://developers.cloudflare.com/workers/platform/triggers/cron-triggers/
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Open a browser tab at http://localhost:8787/ to see your worker in action
- * - Run `npm run deploy` to publish your worker
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
+import { sendWebhook } from "./utils/discord";
+import { getBooks } from "./utils/kimdong";
+import { Publisher, getRegistries } from "./utils/ppdvn";
 
 export interface Env {
-	// Example binding to KV. Learn more at https://developers.cloudflare.com/workers/runtime-apis/kv/
-	// MY_KV_NAMESPACE: KVNamespace;
-	//
-	// Example binding to Durable Object. Learn more at https://developers.cloudflare.com/workers/runtime-apis/durable-objects/
-	// MY_DURABLE_OBJECT: DurableObjectNamespace;
-	//
-	// Example binding to R2. Learn more at https://developers.cloudflare.com/workers/runtime-apis/r2/
-	// MY_BUCKET: R2Bucket;
-	//
-	// Example binding to a Service. Learn more at https://developers.cloudflare.com/workers/runtime-apis/service-bindings/
-	// MY_SERVICE: Fetcher;
-	//
-	// Example binding to a Queue. Learn more at https://developers.cloudflare.com/queues/javascript-apis/
-	// MY_QUEUE: Queue;
-	//
-	// Example binding to a D1 Database. Learn more at https://developers.cloudflare.com/workers/platform/bindings/#d1-database-bindings
-	// DB: D1Database
+	MAYOI_KV: KVNamespace;
+	DEBUG_WEBHOOK_URL: string;
+	KDC_WEBHOOK_URL: string;
+	KIM_WEBHOOK_URL: string;
+	TRE_WEBHOOK_URL: string;
+	IPM_WEBHOOK_URL: string;
+	AMAK_WEBHOOK_URL: string;
+	AZ_WEBHOOK_URL: string;
+	ICHI_WEBHOOK_URL: string;
+	SKY_WEBHOOK_URL: string;
 }
 
 export default {
-	// The scheduled handler is invoked at the interval set in our wrangler.toml's
-	// [[triggers]] configuration.
-	async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
-		// A Cron Trigger can make requests to other endpoints on the Internet,
-		// publish to a Queue, query a D1 Database, and much more.
-		//
-		// We'll keep it simple and make an API call to a Cloudflare API:
-		let resp = await fetch('https://api.cloudflare.com/client/v4/ips');
-		let wasSuccessful = resp.ok ? 'success' : 'fail';
+	async scheduled(
+		event: ScheduledEvent,
+		env: Env,
+		ctx: ExecutionContext
+	): Promise<void> {
+		switch (event.cron) {
+			case "0 */6 * * *":
+				const lastId = await env.MAYOI_KV.get("last_fetched_id");
 
-		// You could store this result in KV, write to a D1 Database, or publish to a Queue.
-		// In this template, we'll just log the result:
-		console.log(`trigger fired at ${event.cron}: ${wasSuccessful}`);
+				const books = await getBooks(lastId ? parseInt(lastId) : undefined);
+
+				await env.MAYOI_KV.put("last_fetched_id", books.latestId.toString());
+
+				if (books.data.length > 0) {
+					for (let i = 0; i < books.data.length; i += 10) {
+						const chunk = books.data.slice(i, i + 10);
+
+						await sendWebhook(env.KDC_WEBHOOK_URL, {
+							embeds: chunk.map((book) => ({
+								author: {
+									name: "Kim Dong Comics",
+									icon_url: "https://thuvienkimdong.vn/Contents/img/logo.png",
+									url: "https://thuvienkimdong.vn/",
+								},
+								title: book.title,
+								description: `Ngày phát hành: ${book.date}`,
+								url: `https://thuvienkimdong.vn/kd-sach--${book.id}.html`,
+								color: 15021623,
+								image: {
+									url: book.cover,
+								},
+								footer: {
+									icon_url: "https://tana.moe/avatar.jpg",
+									text: "Kim Dong Comics | Tana.moe",
+								},
+							})),
+						});
+					}
+				}
+
+				console.log("Schduled task: Kim Dong Comics ran");
+
+				break;
+			case "0 5-17/12 * * *":
+				const lastRegistry = await env.MAYOI_KV.get("last_fetched_registry");
+
+				const registries = await getRegistries(lastRegistry || undefined);
+
+				await env.MAYOI_KV.put(
+					"last_fetched_registry",
+					registries.latestRegistry
+				);
+
+				for (const pub in registries.data) {
+					if (registries.data[pub as Publisher].length == 0) break;
+
+					let webhookUrl = env.DEBUG_WEBHOOK_URL;
+
+					// match the webhook url
+					switch (pub) {
+						case Publisher.Kim_Dong:
+							webhookUrl = env.KIM_WEBHOOK_URL;
+							break;
+						case Publisher.Tre:
+							webhookUrl = env.TRE_WEBHOOK_URL;
+							break;
+						case Publisher.IPM:
+							webhookUrl = env.IPM_WEBHOOK_URL;
+							break;
+						case Publisher.AMAK:
+							webhookUrl = env.AMAK_WEBHOOK_URL;
+							break;
+						case Publisher.AZ:
+							webhookUrl = env.AZ_WEBHOOK_URL;
+							break;
+						case Publisher.Skybooks:
+							webhookUrl = env.SKY_WEBHOOK_URL;
+							break;
+						case Publisher.Ichi:
+							webhookUrl = env.ICHI_WEBHOOK_URL;
+							break;
+					}
+
+					// split to chunk of 10 per webhook
+					for (
+						let i = 0;
+						i < registries.data[pub as Publisher].length;
+						i += 10
+					) {
+						const chunk = registries.data[pub as Publisher].slice(i, i + 10);
+
+						await sendWebhook(webhookUrl, {
+							embeds: chunk.map((registry) => ({
+								author: {
+									name: "Cục Xuất bản",
+									url: "https://ppdvn.gov.vn/web/guest/ke-hoach-xuat-ban",
+								},
+								title: registry.name,
+								color: 357020,
+								fields: [
+									{
+										name: "Tác giả",
+										value: registry.author,
+										inline: true,
+									},
+									{
+										name: "Dịch giả",
+										value: registry.translator,
+										inline: true,
+									},
+								],
+								footer: {
+									icon_url: "https://tana.moe/avatar.jpg",
+									text: "Đăng ký xuất bản | Tana.moe",
+								},
+							})),
+						});
+					}
+				}
+
+				console.log("Scheduled task: Check registries ran");
+
+				break;
+		}
 	},
 };
