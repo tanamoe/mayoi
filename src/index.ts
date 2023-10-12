@@ -19,7 +19,7 @@ export default {
   async scheduled(
     event: ScheduledEvent,
     env: Env,
-    ctx: ExecutionContext,
+    ctx: ExecutionContext
   ): Promise<void> {
     switch (event.cron) {
       case "0 */6 * * *":
@@ -66,16 +66,16 @@ export default {
 
         await env.MAYOI_KV.put(
           "last_fetched_registry",
-          registries.latestRegistry,
+          registries.latestRegistry
         );
 
         for (const pub in registries.data) {
-          if (registries.data[pub as Publisher].length == 0) break;
+          if (registries.data[pub as Publisher].length == 0) continue;
 
           let webhookUrl = env.DEBUG_WEBHOOK_URL;
 
           // match the webhook url
-          switch (pub) {
+          switch (pub as Publisher) {
             case Publisher.Kim_Dong:
               webhookUrl = env.KIM_WEBHOOK_URL;
               break;

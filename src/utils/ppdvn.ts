@@ -35,7 +35,7 @@ export async function getRegistries(match: string = "") {
 
   page_loop: for (let i = 1; i <= MAX_PAGE; i++) {
     const response = await fetch(
-      `https://ppdvn.gov.vn/web/guest/ke-hoach-xuat-ban?p=${i}`,
+      `https://ppdvn.gov.vn/web/guest/ke-hoach-xuat-ban?p=${i}`
     );
 
     if (response.ok) {
