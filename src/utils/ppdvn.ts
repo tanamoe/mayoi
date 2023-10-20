@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio/lib/slim";
 
-const MAX_PAGE = 40;
+const MAX_PAGE = 100;
 
 export enum Publisher {
   Kim_Dong = "kim",
