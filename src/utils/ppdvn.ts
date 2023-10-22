@@ -1,6 +1,7 @@
 import * as cheerio from "cheerio/lib/slim";
+import { Env } from "..";
 
-const MAX_PAGE = 100;
+const MAX_PAGE = 30;
 
 export enum Publisher {
   Kim_Dong = "kim",
@@ -20,22 +21,13 @@ export interface RegistryDetails {
   translator: string;
 }
 
-export async function getRegistries(match: string = "") {
-  // TODO: how to init this
-  const data: Registries = {
-    kim: [],
-    tre: [],
-    ipm: [],
-    amak: [],
-    az: [],
-    ichi: [],
-    skybooks: [],
-  };
+export async function getPartnerRegistries(env: Env, results: Registries, publisher: number) {
+  let match = await env.MAYOI_KV.get(`last_fetched_registry_${publisher}`);
   let latestRegistry;
 
   page_loop: for (let i = 1; i <= MAX_PAGE; i++) {
     const response = await fetch(
-      `https://ppdvn.gov.vn/web/guest/ke-hoach-xuat-ban?p=${i}`
+      `https://ppdvn.gov.vn/web/guest/ke-hoach-xuat-ban?p=${i}&id_nxb=${publisher}`
     );
 
     if (response.ok) {
@@ -43,11 +35,11 @@ export async function getRegistries(match: string = "") {
         const htmlString = await response.text();
         const $ = cheerio.load(htmlString);
 
-        row_loop: for (let row of $("#list_data_return table tbody tr")) {
+        for (let row of $("#list_data_return table tbody tr")) {
           // first check: if name matched, and assign latest to the first row
           const name = $(row).find("td:nth-child(3)").text().trim();
           if (!latestRegistry) latestRegistry = name;
-          if (match != "" && name.includes(match)) break page_loop;
+          if (match && match != "" && name.includes(match)) break page_loop;
 
           // second check: if is a "foreign" book that has translator
           const translator = $(row).find("td:nth-child(5)").text().trim();
@@ -55,16 +47,10 @@ export async function getRegistries(match: string = "") {
 
           // third check: from a known publisher/partner, therefore assign type
           let publisher: Publisher;
-          const id = $(row).find("td:nth-child(9)").text().trim();
           const partner = $(row).find("td:nth-child(8)").text().trim();
-
           const author = $(row).find("td:nth-child(4)").text().trim();
 
-          if (id.includes("KĐ")) {
-            publisher = Publisher.Kim_Dong;
-          } else if (id.includes("Tre")) {
-            publisher = Publisher.Tre;
-          } else if (partner.includes("IPM")) {
+          if (partner.includes("IPM")) {
             publisher = Publisher.IPM;
           } else if (partner.includes("X.Y.Z") || partner.includes("AMAK")) {
             publisher = Publisher.AMAK;
@@ -78,7 +64,7 @@ export async function getRegistries(match: string = "") {
             continue;
           }
 
-          data[publisher].push({ name, author, translator });
+          results[publisher].push({ name, author, translator });
         }
       } catch (e) {
         console.error(e);
@@ -86,7 +72,57 @@ export async function getRegistries(match: string = "") {
     }
   }
 
-  if (!latestRegistry) latestRegistry = match;
+  if (!latestRegistry) latestRegistry = match || "";
 
-  return { data, latestRegistry };
+  await env.MAYOI_KV.put(`last_fetched_registry_${publisher}`, latestRegistry);
+}
+
+export async function getPublisherRegistries(env: Env, results: Registries, publisher: number) {
+  let match = await env.MAYOI_KV.get(`last_fetched_registry_${publisher}`);
+  let latestRegistry;
+
+  page_loop: for (let i = 1; i <= MAX_PAGE; i++) {
+    const response = await fetch(
+      `https://ppdvn.gov.vn/web/guest/ke-hoach-xuat-ban?p=${i}&id_nxb=${publisher}`
+    );
+
+    if (response.ok) {
+      try {
+        const htmlString = await response.text();
+        const $ = cheerio.load(htmlString);
+
+        for (let row of $("#list_data_return table tbody tr")) {
+          // first check: if name matched, and assign latest to the first row
+          const name = $(row).find("td:nth-child(3)").text().trim();
+          if (!latestRegistry) latestRegistry = name;
+          if (match && match != "" && name.includes(match)) break page_loop;
+
+          // second check: if is a "foreign" book that has translator
+          const translator = $(row).find("td:nth-child(5)").text().trim();
+          if (translator == "") continue;
+
+          // third check: from a known publisher/partner, therefore assign type
+          let publisher: Publisher;
+          const id = $(row).find("td:nth-child(9)").text().trim();
+          const author = $(row).find("td:nth-child(4)").text().trim();
+
+          if (id.includes("KĐ")) {
+            publisher = Publisher.Kim_Dong;
+          } else if (id.includes("Tre")) {
+            publisher = Publisher.Tre;
+          } else {
+            continue;
+          }
+
+          results[publisher].push({ name, author, translator });
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }
+
+  if (!latestRegistry) latestRegistry = match || "";
+
+  await env.MAYOI_KV.put(`last_fetched_registry_${publisher}`, latestRegistry);
 }
