@@ -52,7 +52,7 @@ export async function getPartnerRegistries(env: Env, results: Registries, publis
 
           if (partner.includes("IPM")) {
             publisher = Publisher.IPM;
-          } else if (partner.includes("X.Y.Z") || partner.includes("AMAK")) {
+          } else if (partner.includes("X.Y.Z") || partner.includes("Amak") || partner.includes("AMAK")) {
             publisher = Publisher.AMAK;
           } else if (partner.includes("AZ")) {
             publisher = Publisher.AZ;
