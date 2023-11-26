@@ -52,6 +52,8 @@ export async function runRegistriesCheck(env: Env) {
         break;
     }
 
+    if (!webhookUrl) continue;
+
     await sendRegistriesWebhook(webhookUrl, data[publisher as Publisher]);
   }
 
