@@ -59,7 +59,16 @@ export default {
 
         break;
       case "0 5-17/12 * * *":
-        await runRegistriesCheck(env);
+        try {
+          await runRegistriesCheck(env);
+        } catch (e) {
+          await sendWebhook(env.DEBUG_WEBHOOK_URL, {
+            embeds: [{
+              title: "Error",
+              description: e
+            }]
+          });
+        }
         break;
     }
   },
