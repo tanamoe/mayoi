@@ -1,75 +1,44 @@
+import { Logtail } from "@logtail/edge";
+
 import { runRegistriesCheck } from "./jobs/ppdvn";
-import { sendWebhook } from "./utils/discord";
-import { getBooks } from "./utils/kimdong";
+import { runKDCCheck } from "./jobs/kimdong";
 
 export interface Env {
-  MAYOI_KV: KVNamespace;
-  DEBUG_WEBHOOK_URL: string;
-  KDC_WEBHOOK_URL: string;
-  KIM_WEBHOOK_URL: string;
-  TRE_WEBHOOK_URL: string;
-  IPM_WEBHOOK_URL: string;
-  AMAK_WEBHOOK_URL: string;
-  AZ_WEBHOOK_URL: string;
-  ICHI_WEBHOOK_URL: string;
-  SKY_WEBHOOK_URL: string;
+	MAYOI_KV: KVNamespace;
+	LOGTAIL_TOKEN: string;
+	KDC_WEBHOOK_URL: string;
+	KIM_WEBHOOK_URL: string;
+	TRE_WEBHOOK_URL: string;
+	IPM_WEBHOOK_URL: string;
+	AMAK_WEBHOOK_URL: string;
+	AZ_WEBHOOK_URL: string;
+	ICHI_WEBHOOK_URL: string;
+	SKY_WEBHOOK_URL: string;
 }
 
 export default {
-  async scheduled(
-    event: ScheduledEvent,
-    env: Env,
-  ): Promise<void> {
-    switch (event.cron) {
-      case "0 */6 * * *":
-        const lastId = await env.MAYOI_KV.get("last_fetched_id");
+	async scheduled(
+		event: ScheduledEvent,
+		env: Env,
+		ctx: ExecutionContext,
+	): Promise<void> {
+		const baseLogger = new Logtail(env.LOGTAIL_TOKEN);
+		const logger = baseLogger.withExecutionContext(ctx);
 
-        const books = await getBooks(lastId ? parseInt(lastId) : undefined);
+		if (event.cron === "0 5-17/12 * * *") {
+			try {
+				await runRegistriesCheck(env, logger);
+			} catch (err: any) {
+				logger.error("DKXB error occurred!", err);
+			}
+		}
 
-        await env.MAYOI_KV.put("last_fetched_id", books.latestId.toString());
-
-        if (books.data.length > 0) {
-          for (let i = 0; i < books.data.length; i += 10) {
-            const chunk = books.data.slice(i, i + 10);
-
-            await sendWebhook(env.KDC_WEBHOOK_URL, {
-              embeds: chunk.map((book) => ({
-                author: {
-                  name: "Kim Dong Comics",
-                  icon_url: "https://thuvienkimdong.vn/Contents/img/logo.png",
-                  url: "https://thuvienkimdong.vn/",
-                },
-                title: book.title,
-                description: `Ngày phát hành: ${book.date}`,
-                url: `https://thuvienkimdong.vn/kd-sach--${book.id}.html`,
-                color: 15021623,
-                image: {
-                  url: book.cover,
-                },
-                footer: {
-                  icon_url: "https://tana.moe/avatar.jpg",
-                  text: "Kim Dong Comics | Tana.moe",
-                },
-              })),
-            });
-          }
-        }
-
-        console.log("Schduled task: Kim Dong Comics ran");
-
-        break;
-      case "0 5-17/12 * * *":
-        try {
-          await runRegistriesCheck(env);
-        } catch (e) {
-          await sendWebhook(env.DEBUG_WEBHOOK_URL, {
-            embeds: [{
-              title: "Error",
-              description: e
-            }]
-          });
-        }
-        break;
-    }
-  },
+		if (event.cron === "0 */6 * * *") {
+			try {
+				await runKDCCheck(env, logger);
+			} catch (err: any) {
+				logger.error("Kim Dong Comics error occurred!", err);
+			}
+		}
+	},
 };
