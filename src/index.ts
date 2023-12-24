@@ -1,7 +1,6 @@
 import { Logtail } from "@logtail/edge";
 
 import { runRegistriesCheck } from "./jobs/ppdvn";
-import { runKDCCheck } from "./jobs/kimdong";
 
 export interface Env {
 	MAYOI_KV: KVNamespace;
@@ -25,19 +24,11 @@ export default {
 		const baseLogger = new Logtail(env.LOGTAIL_TOKEN);
 		const logger = baseLogger.withExecutionContext(ctx);
 
-		if (event.cron === "0 5-17/12 * * *") {
+		if (event.cron === "5 */1 * * *") {
 			try {
 				await runRegistriesCheck(env, logger);
 			} catch (err: any) {
 				logger.error("DKXB error occurred!", err);
-			}
-		}
-
-		if (event.cron === "0 */6 * * *") {
-			try {
-				await runKDCCheck(env, logger);
-			} catch (err: any) {
-				logger.error("Kim Dong Comics error occurred!", err);
 			}
 		}
 	},
